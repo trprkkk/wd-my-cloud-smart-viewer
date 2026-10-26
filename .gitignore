@@ -1,0 +1,13 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# ローカル設定・バックアップ
+*.local.php
+config.local.php
+*.bak
+
+# ログ
+*.log
