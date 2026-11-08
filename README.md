@@ -35,7 +35,7 @@ My Cloud のダッシュボードに **通常のアプリと同じ形でイン�
 
 ### 2. `.bin` をダウンロードする
 
-[Releases](../../releases) から該当するファイルをダウンロードします。
+[Releases](https://github.com/trprkkk/wd-my-cloud-smart-viewer/releases) から該当するファイルをダウンロードします。
 
 ### 3. ダッシュボードからインストールする
 
