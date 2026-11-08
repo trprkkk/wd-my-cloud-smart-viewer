@@ -11,3 +11,9 @@ config.local.php
 
 # ログ
 *.log
+
+# ビルド生成物
+*.bin
+app/.build/
+app/apkg.xml
+app/apkg.sign

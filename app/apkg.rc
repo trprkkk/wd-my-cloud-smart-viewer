@@ -1,0 +1,19 @@
+Package:        smartinfo
+Version:        1.0.0
+Packager:       trprkkk
+Email:
+Homepage:       https://github.com/trprkkk/wd-my-cloud-smart-viewer
+Description:    SMART health viewer for the internal HDD
+Icon:           smartinfo.png
+AddonShowName:  SMART Viewer
+AddonIndexPage: index.php
+AddonUsedPort:
+InstDepend:
+InstConflict:
+StartDepend:
+StartConflict:
+CenterType:     1
+UserControl:    0
+MinFWVer:
+MaxFWVer:
+IndividualFlag: 0

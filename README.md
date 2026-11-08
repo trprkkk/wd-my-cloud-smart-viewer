@@ -1,12 +1,13 @@
 # WD My Cloud SMART Viewer
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![PHP](https://img.shields.io/badge/PHP-no%20dependencies-777bb4.svg)
-![Platform](https://img.shields.io/badge/Platform-WD%20My%20Cloud%201st%20Gen-blue.svg)
+![Platform](https://img.shields.io/badge/Platform-My%20Cloud%20OS3%20%2F%20OS5-blue.svg)
+![PHP](https://img.shields.io/badge/PHP-5.3%2B-777bb4.svg)
 
-WD My Cloud 1st Gen(My Cloud OS 3 系)の内蔵 HDD の **S.M.A.R.T. 情報をブラウザで閲覧する**、依存ライブラリ不要の単一 PHP アプリです。
+WD My Cloud の内蔵 HDD の **S.M.A.R.T. 情報をブラウザで閲覧する**アプリです。
+My Cloud のダッシュボードに **通常のアプリと同じ形でインストール**でき、アイコンから起動できます。
 
-*View the S.M.A.R.T. health of your WD My Cloud 1st Gen's internal drive from a web browser. A single-file, dependency-free PHP app.*
+*View the S.M.A.R.T. health of your WD My Cloud's internal drive from the dashboard. Installs as a regular My Cloud app (.bin).*
 
 <!-- スクリーンショットを追加する場合は docs/screenshot.png を置いて下記を有効化 -->
 <!-- ![Screenshot](docs/screenshot.png) -->
@@ -18,82 +19,117 @@ WD My Cloud 1st Gen(My Cloud OS 3 系)の内蔵 HDD の **S.M.A.R.T. 情報を�
   - 代替済みセクタ数、保留セクタ数、通電時間、温度 など
 - **デバイス情報** — モデル、シリアル番号、ファームウェア、容量、回転数
 - **生の smartctl 出力** — 折りたたみで確認可能
-- **単一ファイル・依存なし** — 外部ライブラリやビルド不要。`index.php` を置くだけ
+- **単一ファイル・依存なし** — 外部ライブラリやビルド不要
 - **閲覧専用** — HDD への書き込みや設定変更は一切行いません
 
-## セットアップ
+## インストール(アプリとして)
 
-### 1. SSH を有効にする(まだの場合)
+### 1. 自分の OS を確認する
 
-1. ブラウザで `http://<NASのIP>/`(wdcloud ダッシュボード)を開く
-2. **設定 → ネットワーク → SSH** を開く
-3. **SSH アクセスを ON** にし、パスワードを設定
-   - 既定ユーザー: `root`(ファームウェアによっては `admin`)
-4. 接続確認:
-   ```sh
-   ssh root@<NASのIP>
-   ```
+ダッシュボードの **設定 → システム更新** でファームウェアを確認します。
 
-> ファームウェア v04 の一部にはダッシュボードに SSH 項目がありません。
-> その場合は My Cloud OS 3 へ更新するか、別途有効化手順が必要です。
+| ファームウェア | 使用するファイル |
+|---|---|
+| 5.x(My Cloud OS 5) | `WDMyCloud_smartinfo_1.0.0_OS5.bin` |
+| 4.x(My Cloud OS 3) | `WDMyCloud_smartinfo_1.0.0_OS3.bin` |
 
-### 2. ファイルを転送する
+### 2. `.bin` をダウンロードする
 
-`smartinfo/` の中身(`index.php` と `install.sh`)を NAS の **Public 共有** にコピーします。
-エクスプローラーで `\\<NASのIP>\Public` を開いてドラッグ&ドロップするだけで OK です。
+[Releases](../../releases) から該当するファイルをダウンロードします。
 
-### 3. インストールする
+### 3. ダッシュボードからインストールする
 
-SSH でログインして:
+1. ダッシュボードの **アプリ** を開く
+2. **アプリを追加**(手動インストール)を選択
+3. ダウンロードした `.bin` を指定してインストール
+4. 一覧に **SMART Viewer** が表示されるので **有効化** する
+5. アイコンをクリックすると SMART 情報が表示されます
+
+インストール先は `/mnt/HD/HD_a2/Nas_Prog/smartinfo`、Web ページは
+`/var/www/apps/smartinfo/` にシンボリックリンクされます。
+
+> **対応モデル**: `WDMyCloud`(1st Gen)。他のモデルで使う場合は
+> [ビルド方法](#ビルド方法)を参照して `-m` のモデル名を変えてください。
+
+## インストール(単体 PHP として / SSH)
+
+アプリ化せず、URL で直接開くこともできます。
+
+1. SSH を有効化(設定 → ネットワーク → SSH)
+2. リポジトリを NAS の Public 共有にコピー
+3. 実行:
 
 ```sh
-cd /mnt/HD/HD_a2/Public
+cd /mnt/HD/HD_a2/Public/wd-my-cloud-smart-viewer
 sh install.sh
 ```
 
-スクリプトが自動で行うこと:
-
-- `smartmontools` が無ければインストール
-- `/var/www/smartinfo/index.php` にアプリを配置
-- Web サーバー(www-data)が `smartctl` を sudo 実行できるよう sudoers に追加
-
-### 4. アクセスする
-
-```
-http://<NASのIP>/smartinfo/
-```
-
-## 構成
-
-| ファイル | 説明 |
-|---|---|
-| `index.php` | アプリ本体(単一ファイル、外部ライブラリ不要) |
-| `install.sh` | NAS 上でのインストールスクリプト |
-| `README.md` | このドキュメント |
-| `LICENSE` | MIT ライセンス |
+`http://<NASのIP>/smartinfo/` で開けます。
 
 ## 動作環境
 
 | 項目 | 内容 |
 |---|---|
 | 本体 | WD My Cloud 1st Gen(Armada 370 / ARMv7) |
-| ファームウェア | My Cloud OS 3(v04.xx) |
-| Web サーバー | 付属 Apache + PHP |
-| 必須コマンド | `smartctl`(smartmontools 7.x で動作確認) |
+| ファームウェア | My Cloud OS 3(v04.xx)または My Cloud OS 5(v5.xx) |
+| Web サーバー | 付属 Apache + PHP(PHP 5.3+ で動作) |
+| 必須コマンド | `smartctl`(smartmontools) |
+
+## ビルド方法
+
+`.bin` は WD のパッケージツール `mksapkg` で作成します(リポジトリには含めていません)。
+Docker があれば 1 コマンドでビルドできます。
+
+```sh
+cd app
+
+# OS5 向け
+./build.sh OS5 WDMyCloud
+
+# OS3 向け
+./build.sh OS3 WDMyCloud
+```
+
+- 出力: `WDMyCloud_smartinfo_<version>_<OS>.bin`
+- `mksapkg` は [WDCommunity/wdpksrc](https://github.com/WDCommunity/wdpksrc) から取得します
+- 署名は OS3 = `bf-cbc/md5`、OS5 = `bf-cbc/sha256` と異なるため、それぞれ専用のツールでビルドします
+
+## 構成
+
+```
+.
+├── app/                     # My Cloud アプリのソース
+│   ├── apkg.rc              # アプリ情報(名前・アイコン・埋め込み設定)
+│   ├── build.sh             # .bin ビルドスクリプト
+│   ├── install.sh           # インストール時に実行
+│   ├── init.sh              # 起動時に /var/www/apps/ へリンク
+│   ├── start.sh / stop.sh   # 常駐なし(no-op)
+│   ├── clean.sh / remove.sh # 無効化・削除
+│   └── web/
+│       ├── index.php        # アプリ本体(単一ファイル)
+│       └── smartinfo.png    # アイコン
+├── install.sh               # 単体 PHP 用インストーラ
+├── LICENSE
+└── README.md
+```
+
+`app/apkg.rc` の `CenterType: 1` により、ダッシュボード埋め込み型アプリ
+(`/var/www/apps/<pkg>/`)として表示されます。
 
 ## 注意事項
 
-- **ファームウェア更新で消える可能性があります。** その場合は `install.sh` を再実行してください(Public 共有に置いたままにしておけば数秒で復旧)。
+- **ファームウェア更新で消える可能性があります。** その場合は `.bin` を再インストールしてください。
 - NAS がインターネットへ公開されている環境では第三者もアクセスできます。**同一 LAN 内での使用を推奨**します。
-- 追加ディスクを監視したい場合は `index.php` 冒頭の `$DISKS` 配列に `/dev/sdb` などを追加してください。
+- 追加ディスクを監視したい場合は `app/web/index.php` 冒頭の `$DISKS` 配列に `/dev/sdb` などを追加してください。
 
 ## トラブルシューティング
 
 | 症状 | 対処 |
 |---|---|
-| 「smartctl が見つかりません」と表示 | `apt-get install -y smartmontools` を実行、または `index.php` の `$SMARTCTL` パスを修正 |
-| 属性テーブルが空 | SSH で `smartctl -a /dev/sda` が動くか確認。`install.sh` を再実行して sudoers 設定を反映 |
-| ページが 404 | `ls /var/www/smartinfo/` で配置を確認。Apache のドキュメントルートが異なる場合は実体に合わせて配置先を変更 |
+| 「smartctl が見つかりません」と表示 | SSH で `smartctl -a /dev/sda` が動くか確認。必要なら `apt-get install -y smartmontools` |
+| 属性テーブルが空 | Web サーバーから `smartctl` を実行できる権限か確認(`sudo -n smartctl -a /dev/sda`) |
+| アプリ一覧に出ない | OS と `.bin` の種類(OS3/OS5)が一致しているか確認 |
+| インストールに失敗する | モデル名が `WDMyCloud` か確認。他モデルは `./build.sh OS5 <モデル名>` でビルド |
 
 ## ライセンス
 

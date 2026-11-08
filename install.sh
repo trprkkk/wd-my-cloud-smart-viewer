@@ -19,10 +19,10 @@ fi
 echo "smartctl: $(command -v smartctl)"
 
 # 配置
-SRC="$(dirname "$0")/index.php"
+SRC="$(dirname "$0")/app/web/index.php"
 DEST_DIR="/var/www/smartinfo"
 if [ ! -f "$SRC" ]; then
-    echo "!! $SRC が見つかりません。index.php を同じフォルダに置いてください。" >&2
+    echo "!! $SRC が見つかりません。リポジトリごと Public 共有に置いてください。" >&2
     exit 1
 fi
 mkdir -p "$DEST_DIR"
@@ -31,10 +31,9 @@ chmod 755 "$DEST_DIR"
 chmod 644 "$DEST_DIR/index.php"
 
 # smartctl に sudo 経由でアクセスできるようにする
-# (My Cloud の Apache は www-data 権限で動作するため。index.php 側で自動的に sudo を試行します)
-SUDOERS_LINE="www-data ALL=(ALL) NOPASSWD: /usr/sbin/smartctl"
-SMARTCTL_PATH="$(command -v smartctl || echo /usr/sbin/smartctl)"
-if command -v sudo >/dev/null 2>&1; then
+# (Web サーバーが www-data 権限で動作する場合のフォールバック。index.php 側で sudo -n を試行します)
+SMARTCTL_PATH="$(command -v smartctl 2>/dev/null)"
+if [ -n "$SMARTCTL_PATH" ] && command -v sudo >/dev/null 2>&1; then
     if ! grep -q "smartctl" /etc/sudoers 2>/dev/null; then
         echo "www-data ALL=(ALL) NOPASSWD: $SMARTCTL_PATH" >> /etc/sudoers
         echo "sudoers に smartctl の許可を追加しました。"
