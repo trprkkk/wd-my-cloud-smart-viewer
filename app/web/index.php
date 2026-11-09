@@ -32,13 +32,18 @@ function si_find_smartctl($dataDir) {
     foreach ($candidates as $p) {
         if (@is_executable($p)) return $p;
     }
-    $which = @shell_exec('command -v smartctl 2>/dev/null');
-    if ($which && trim($which) !== '') return trim($which);
+    if (function_exists('shell_exec')) {
+        $which = @shell_exec('command -v smartctl 2>/dev/null');
+        if ($which && trim($which) !== '') return trim($which);
+    }
     return null;
 }
 
 /** root 以外でも動くよう sudo フォールバック付きで実行 */
 function si_exec($cmd) {
+    // OS5 の PHP では実行系関数が無効化されている場合がある
+    if (!function_exists('shell_exec')) return null;
+
     $out = @shell_exec($cmd . ' 2>&1');
     if ($out === null || $out === false
         || stripos($out, 'Permission denied') !== false
