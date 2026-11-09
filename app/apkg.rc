@@ -1,5 +1,6 @@
 Package:        smartinfo
-Version:        1.0.0
+Section:        Apps
+Version:        1.0.1
 Packager:       trprkkk
 Email:
 Homepage:       https://github.com/trprkkk/wd-my-cloud-smart-viewer
@@ -8,6 +9,9 @@ Icon:           smartinfo.png
 AddonShowName:  SMART Viewer
 AddonIndexPage: index.php
 AddonUsedPort:
+AddonDefaultPort:
+AddonDefaultGroup:
+AddonDefaultUser:
 InstDepend:
 InstConflict:
 StartDepend:
@@ -17,3 +21,4 @@ UserControl:    0
 MinFWVer:
 MaxFWVer:
 IndividualFlag: 0
+Hidden:         off

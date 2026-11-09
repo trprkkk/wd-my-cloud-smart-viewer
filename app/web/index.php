@@ -2,20 +2,28 @@
 /**
  * WD My Cloud SMART Viewer
  *
- * 単一ファイルで動作する SMART 閲覧アプリ。
- * - OS3 アプリ(CenterType: 1)としてダッシュボードに埋め込むと、ページ断片として描画
- * - 直接アクセス(http://nas/smartinfo/)した場合は完全な HTML ページとして描画
+ * - OS5 アプリ(CenterType: 1)としてダッシュボードに埋め込むと、ページ断片として描画
+ * - 直接アクセス(http://nas/apps/smartinfo/)した場合は完全な HTML ページとして描画
+ *
+ * SMART 情報の取得方法は 2 通り:
+ *  1. root で動く bin/collector.sh が data/ に書き出した JSON / テキストを読む(通常)
+ *  2. それが無い場合は smartctl を直接実行する(SSH 単体利用時など)
  *
  * PHP 5.3+ 互換(smartctl 7.x の JSON 出力を使用、非対応時はテキスト解析)
  */
 
 // ---------- 設定 ----------
-$DISKS     = array('/dev/sda');   // 監視するディスク。追加例: '/dev/sdb'
-$CACHE_TTL = 30;                  // キャッシュ秒数
+$DISKS     = array('/dev/sda', '/dev/sdb'); // 直接実行時のフォールバック
+$CACHE_TTL = 30;                            // 直接実行時のキャッシュ秒数
 $TITLE     = 'SMART Viewer';
 // --------------------------
 
-function si_find_smartctl() {
+$DATA_DIR = dirname(__FILE__) . '/../data';
+
+function si_find_smartctl($dataDir) {
+    $recorded = @trim(@file_get_contents($dataDir . '/smartctl.path'));
+    if ($recorded !== '' && @is_executable($recorded)) return $recorded;
+
     $candidates = array(
         '/usr/sbin/smartctl', '/usr/bin/smartctl', '/usr/local/sbin/smartctl',
         '/usr/local/bin/smartctl', '/sbin/smartctl', '/bin/smartctl',
@@ -55,8 +63,7 @@ function si_collect_json($smartctl, $disk) {
 }
 
 /** テキスト出力から最低限の情報を抽出(JSON 非対応の smartctl 用) */
-function si_collect_text($smartctl, $disk) {
-    $text = si_exec(escapeshellarg($smartctl) . ' -a ' . escapeshellarg($disk));
+function si_parse_text($text) {
     if (!$text) return null;
 
     $data = array(
@@ -100,7 +107,11 @@ function si_collect_text($smartctl, $disk) {
     return $data;
 }
 
-/** ディスク情報を取得(キャッシュ付き) */
+function si_collect_text($smartctl, $disk) {
+    return si_parse_text(si_exec(escapeshellarg($smartctl) . ' -a ' . escapeshellarg($disk)));
+}
+
+/** ディスク情報を直接取得(キャッシュ付き) */
 function si_get_disk($smartctl, $disk, $ttl, $force) {
     $cacheFile = sys_get_temp_dir() . '/smartinfo_' . md5($disk) . '.json';
     if (!$force && is_readable($cacheFile)) {
@@ -117,6 +128,36 @@ function si_get_disk($smartctl, $disk, $ttl, $force) {
         @file_put_contents($cacheFile, json_encode(array('ts' => time(), 'data' => $data)));
     }
     return $data;
+}
+
+/** コレクタが書き出した data/*.json, data/*.txt を読む */
+function si_load_collected($dir) {
+    $out = array();
+    if (!is_dir($dir)) return $out;
+    $dh = @opendir($dir);
+    if (!$dh) return $out;
+    while (($f = readdir($dh)) !== false) {
+        if (substr($f, 0, 1) === '.') continue;
+        if (!preg_match('/^(sd[a-z]+|nvme\d+n\d+)\.(json|txt)$/', $f, $m)) continue;
+        $dev = '/dev/' . $m[1];
+        $path = $dir . '/' . $f;
+        $out[$dev]['mtime'] = @filemtime($path);
+        if ($m[2] === 'json') {
+            $j = json_decode(@file_get_contents($path), true);
+            if (is_array($j)) {
+                $out[$dev]['data'] = $j;
+                $out[$dev]['type'] = 'json';
+            }
+        } else {
+            $t = @file_get_contents($path);
+            if ($t !== false && $t !== '') {
+                $out[$dev]['text'] = $t;
+                $out[$dev]['type'] = 'text';
+            }
+        }
+    }
+    closedir($dh);
+    return $out;
 }
 
 /** 画面表示用の値に整える */
@@ -201,14 +242,33 @@ $SI_ATTR_NAMES = array(
     200 => 'マルチゾーンエラー率',
 );
 
-$smartctl = si_find_smartctl();
+$smartctl = si_find_smartctl($DATA_DIR);
 $embedded = (isset($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], '/apps/') !== false);
 $force    = isset($_GET['refresh']);
-$results  = array();
 
-foreach ($DISKS as $disk) {
-    if (!file_exists($disk)) continue;
-    $results[$disk] = $smartctl ? si_get_disk($smartctl, $disk, $CACHE_TTL, $force) : null;
+if ($force && is_dir($DATA_DIR)) {
+    @touch($DATA_DIR . '/.refresh');
+}
+
+$collected = si_load_collected($DATA_DIR);
+$updated   = @filemtime($DATA_DIR . '/updated');
+$results   = array();
+$source    = 'live';
+
+if (count($collected) > 0) {
+    $source = 'collector';
+    foreach ($collected as $dev => $c) {
+        if (isset($c['data'])) {
+            $results[$dev] = $c['data'];
+        } elseif (isset($c['text'])) {
+            $results[$dev] = si_parse_text($c['text']);
+        }
+    }
+} else {
+    foreach ($DISKS as $disk) {
+        if (!file_exists($disk)) continue;
+        $results[$disk] = $smartctl ? si_get_disk($smartctl, $disk, $CACHE_TTL, $force) : null;
+    }
 }
 
 $css = '.si-app { font-family: "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif; color:#222; line-height:1.6; }'
@@ -228,6 +288,7 @@ $css = '.si-app { font-family: "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif
      . '.si-app .si-meta div { display:flex; gap:8px; }'
      . '.si-app .si-meta b { min-width:110px; color:#555; font-weight:600; }'
      . '.si-app .si-err { color:#c0392b; }'
+     . '.si-app .si-note { color:#555; font-size:12px; background:#f6f8fa; border-left:3px solid #2d6cdf; padding:8px 12px; margin:8px 0 14px; }'
      . '.si-app .si-muted { color:#888; font-size:12px; margin-top:12px; }'
      . '.si-app details { margin-top:12px; }'
      . '.si-app summary { cursor:pointer; font-size:12px; color:#2d6cdf; }'
@@ -245,7 +306,7 @@ echo "<style>\n" . $css . "\n</style>\n";
 echo "<div class=\"si-app\">\n";
 echo "<h1>&#128190; " . htmlspecialchars($TITLE) . "</h1>\n";
 ?>
-<?php if (!$smartctl): ?>
+<?php if ($smartctl === null && $source !== 'collector'): ?>
   <div class="si-card si-err">
     <b>smartctl が見つかりません。</b><br>
     SSH でログインし <code>apt-get update &amp;&amp; apt-get install -y smartmontools</code> を実行してください。<br>
@@ -254,7 +315,11 @@ echo "<h1>&#128190; " . htmlspecialchars($TITLE) . "</h1>\n";
 <?php endif; ?>
 
 <?php if (count($results) === 0): ?>
-  <div class="si-card si-err">ディスクが見つかりません。設定の <code>$DISKS</code> を確認してください。</div>
+  <div class="si-card si-err">
+    ディスクが見つかりません。<br>
+    <span style="font-size:12px">アプリを有効化してから数十秒待つと、root コレクタが情報を収集します。それでも表示されない場合は SSH で
+    <code>smartctl -a /dev/sda</code> が実行できるか確認してください。</span>
+  </div>
 <?php endif; ?>
 
 <?php foreach ($results as $disk => $raw): $d = si_normalize($raw); ?>
@@ -274,6 +339,9 @@ echo "<h1>&#128190; " . htmlspecialchars($TITLE) . "</h1>\n";
     <?php if (!$d): ?>
       <p class="si-err">SMART 情報を取得できませんでした。smartctl の実行権限を確認してください。</p>
     <?php else: ?>
+      <?php if ($source === 'collector'): ?>
+        <div class="si-note">root コレクタが取得したデータを表示しています<?php if ($updated): ?>（<?php echo htmlspecialchars(date('Y-m-d H:i:s', $updated)); ?> 更新）<?php endif; ?>。「再取得」を押すと最大 5 秒後に更新されます。</div>
+      <?php endif; ?>
       <div class="si-meta">
         <?php foreach ($d['info'] as $k => $v): ?>
           <div><b><?php echo htmlspecialchars($k); ?></b><span><?php echo htmlspecialchars((string)$v); ?></span></div>
@@ -312,7 +380,9 @@ echo "<h1>&#128190; " . htmlspecialchars($TITLE) . "</h1>\n";
   </div>
 <?php endforeach; ?>
 
-<p class="si-muted">取得時刻: <?php echo htmlspecialchars(date('Y-m-d H:i:s')); ?> &middot; WD My Cloud SMART Viewer</p>
+<p class="si-muted">
+  取得時刻: <?php echo htmlspecialchars(date('Y-m-d H:i:s', $updated ? $updated : time())); ?> &middot; WD My Cloud SMART Viewer
+</p>
 </div>
 
 <?php if (!$embedded): ?>

@@ -4,6 +4,7 @@
 # 使用方法:
 #   ./build.sh [OS5|OS3] [モデル名]
 #   例: ./build.sh OS5 WDMyCloud
+#       ./build.sh OS5 WDCloud
 #       ./build.sh OS3 WDMyCloud
 #
 # 必要なもの: Docker
@@ -27,7 +28,8 @@ MKSAPKG_URL="https://raw.githubusercontent.com/WDCommunity/wdpksrc/${MKSAPKG_REV
 # パッケージのトップレベルが smartinfo/ になるように組み立てる
 rm -rf .build
 mkdir -p .build/smartinfo
-cp -a apkg.rc before_apkg.sh preinst.sh install.sh init.sh start.sh stop.sh clean.sh remove.sh web .build/smartinfo/
+cp -a apkg.rc before_apkg.sh preinst.sh install.sh init.sh start.sh stop.sh clean.sh remove.sh bin web .build/smartinfo/
+chmod +x .build/smartinfo/*.sh .build/smartinfo/bin/*.sh 2>/dev/null || true
 
 echo "Building ${MODEL}_smartinfo_${VERSION}_${OS}.bin"
 

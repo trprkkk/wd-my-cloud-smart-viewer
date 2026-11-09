@@ -1,36 +1,42 @@
 #!/bin/sh
-# install.sh <展開先ディレクトリ> <Nas_Prog ディレクトリ>
-# パッケージ内容を /mnt/HD/HD_a2/Nas_Prog/smartinfo へ配置する
+# install.sh <アップロード先ディレクトリ> <Nas_Prog>
+# 呼び出し: $UPLOAD_PATH/install.sh $UPLOAD_PATH $INSTALL_PATH
 LOG=/tmp/debug_apkg
 echo "APKG_DEBUG: $0 $@" >> $LOG
 
-INSTALL_DIR=$(readlink -f "$1")
-NAS_PROG=$(readlink -f "$2")
-APKG_PATH="${NAS_PROG}/smartinfo"
+UPLOAD=$(readlink -f "$1")
+APPS=$(readlink -f "$2")
+APP="${APPS}/smartinfo"
 
-echo "install: ${INSTALL_DIR} -> ${APKG_PATH}" >> $LOG
+if [ -z "$UPLOAD" ] || [ -z "$APPS" ]; then
+    echo "install: invalid arguments ($1 / $2)" >> $LOG
+    exit 1
+fi
 
-mkdir -p "$NAS_PROG"
-rm -rf "$APKG_PATH"
-mv "$INSTALL_DIR" "$APKG_PATH" 2>>$LOG || cp -a "$INSTALL_DIR" "$APKG_PATH"
+echo "install: ${UPLOAD} -> ${APP}" >> $LOG
 
-# キャッシュ用ディレクトリ(Web サーバーから書き込めるようにする)
-mkdir -p "$APKG_PATH/data"
-chmod 777 "$APKG_PATH/data" 2>/dev/null
+mkdir -p "$APPS"
+rm -rf "$APP"
+mv "$UPLOAD" "$APP" 2>>$LOG || cp -a "$UPLOAD" "$APP" 2>>$LOG
 
-# smartctl の場所を記録しておく(Web 側で参照)
-SMARTCTL=$(command -v smartctl 2>/dev/null)
+# データ用ディレクトリ(Web サーバーからも書き込めるようにする)
+mkdir -p "$APP/data"
+chmod 777 "$APP/data" 2>/dev/null
+
+# smartctl の場所を記録(root コレクタが参照する)
+SMARTCTL=""
+for p in /usr/sbin/smartctl /usr/local/sbin/smartctl /usr/bin/smartctl /sbin/smartctl /opt/bin/smartctl; do
+    if [ -x "$p" ]; then SMARTCTL="$p"; break; fi
+done
 if [ -z "$SMARTCTL" ]; then
-    for p in /usr/sbin/smartctl /usr/local/bin/smartctl /usr/bin/smartctl /opt/bin/smartctl; do
-        [ -x "$p" ] && SMARTCTL="$p" && break
-    done
+    SMARTCTL=$(command -v smartctl 2>/dev/null)
 fi
 if [ -n "$SMARTCTL" ]; then
-    echo "$SMARTCTL" > "$APKG_PATH/data/smartctl.path"
-    chmod 644 "$APKG_PATH/data/smartctl.path"
-    echo "smartctl: ${SMARTCTL}" >> $LOG
+    echo "$SMARTCTL" > "$APP/data/smartctl.path"
+    chmod 644 "$APP/data/smartctl.path"
+    echo "install: smartctl=${SMARTCTL}" >> $LOG
 else
-    echo "smartctl not found. Install smartmontools." >> $LOG
+    echo "install: smartctl not found" >> $LOG
 fi
 
 exit 0
